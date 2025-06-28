@@ -3,6 +3,9 @@ import requests
 import csv
 import os
 from collections import defaultdict
+import json
+import time
+from datetime import datetime
 
 url_biznes_gov = "https://www.biznes.gov.pl/pl/wyszukiwarka-firm/"
 
@@ -41,11 +44,61 @@ def get_company_basic_info(krs_num, cookie):
     response = requests.get(url, headers=headers)
     return response.json()
 
+def get_company_register_type(krs_str):
+    url = "https://prs-openapi2-prs-prod.apps.ocp.prod.ms.gov.pl/api/wyszukiwarka/krs"
+    payload = {
+        "rejestr": ["P", "S"],
+        "podmiot": {
+            "krs": krs_str,
+            "nip": None,
+            "regon": None,
+            "nazwa": None,
+            "wojewodztwo": None,
+            "powiat": None,
+            "gmina": None,
+            "miejscowosc": None
+        },
+        "status": {
+            "czyOpp": None,
+            "czyWpisDotyczacyPostepowaniaUpadlosciowego": None,
+            "dataPrzyznaniaStatutuOppOd": None,
+            "dataPrzyznaniaStatutuOppDo": None
+        },
+        "paginacja": {
+            "liczbaElementowNaStronie": 100,
+            "maksymalnaLiczbaWynikow": 100,
+            "numerStrony": 1
+        }
+    }
+    headers = {
+    "Host": "prs-openapi2-prs-prod.apps.ocp.prod.ms.gov.pl",
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "x-api-key": "TopSecretApiKey",  # <-- replace with the actual key if needed
+    "Content-Type": "application/json",
+    "Origin": "https://wyszukiwarka-krs.ms.gov.pl",
+    "Connection": "keep-alive",
+    "Referer": "https://wyszukiwarka-krs.ms.gov.pl/",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-site",
+    "Priority": "u=0"
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    data = response.json()
+    if data["liczbaPodmiotow"] >= 1:
+        return data["listaPodmiotow"][0]["typRejestru"]
+    return None
+
 def get_company_report(krs_str, report_type):
     base_url = "https://api-krs.ms.gov.pl/api/krs"
     endpoint = "OdpisAktualny" if report_type == "A" else "OdpisPelny"
-    url = f"{base_url}/{endpoint}/{krs_str}"
-    response = response.get(url)
+    url = f"{base_url}/{endpoint}/{krs_str}?rejestr={get_company_register_type(krs_str)}"
+    response = requests.get(url)
+    if response.status_code == 204 and report_type == "A":
+        return get_company_report(krs_str, "F")
     return response.json()
 
 def create_companies_watchlist():
@@ -78,3 +131,13 @@ def remove_from_watchlist(krs_str):
             else:
                 print(f"{krs_str} usunięty z listy")
 
+
+def save_companies_reports():
+    with open("krs_watchlist.txt", "r") as file:
+        lines = [line.strip() for line in file]
+    for line in lines:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        with open(f"KRS_reports/{line}_{timestamp}.json", "w") as jfile:
+            data = get_company_report(line, "A")
+            json.dump(data, jfile, ensure_ascii=False, indent=2)
+        time.sleep(1)
