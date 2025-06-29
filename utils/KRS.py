@@ -2,7 +2,7 @@ from selenium import webdriver
 import requests
 import csv
 import os
-from collections import defaultdict
+from deepdiff import DeepDiff
 import json
 import time
 from datetime import datetime
@@ -76,7 +76,7 @@ def get_company_register_type(krs_str):
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.5",
     "Accept-Encoding": "gzip, deflate, br, zstd",
-    "x-api-key": "TopSecretApiKey",  # <-- replace with the actual key if needed
+    "x-api-key": "TopSecretApiKey",
     "Content-Type": "application/json",
     "Origin": "https://wyszukiwarka-krs.ms.gov.pl",
     "Connection": "keep-alive",
@@ -92,10 +92,13 @@ def get_company_register_type(krs_str):
         return data["listaPodmiotow"][0]["typRejestru"]
     return None
 
-def get_company_report(krs_str, report_type):
+def get_company_report(krs_str, report_type = "A"):
     base_url = "https://api-krs.ms.gov.pl/api/krs"
     endpoint = "OdpisAktualny" if report_type == "A" else "OdpisPelny"
-    url = f"{base_url}/{endpoint}/{krs_str}?rejestr={get_company_register_type(krs_str)}"
+    register_type = get_company_register_type(krs_str)
+    if not register_type:
+        return None
+    url = f"{base_url}/{endpoint}/{krs_str}?rejestr={register_type}"
     response = requests.get(url)
     if response.status_code == 204 and report_type == "A":
         return get_company_report(krs_str, "F")
@@ -137,7 +140,38 @@ def save_companies_reports():
         lines = [line.strip() for line in file]
     for line in lines:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        data = get_company_report(line, "A")
+        if not data:
+            continue
         with open(f"KRS_reports/{line}_{timestamp}.json", "w") as jfile:
-            data = get_company_report(line, "A")
             json.dump(data, jfile, ensure_ascii=False, indent=2)
         time.sleep(1)
+
+def get_recent_changes(data):
+    url = f"https://api-krs.ms.gov.pl/api/Krs/Biuletyn/{data}"
+    response = requests.get(url)
+    return response.json()
+
+def check_if_changed(krs_list):
+    krs_set = set(krs_list)
+    with open("krs_watchlist.txt", "r") as file:
+        lines = set(line.strip() for line in file)
+    return krs_set & lines
+
+def check_what_changed(krs_set):
+    arr = [f for f in os.listdir("KRS_reports") if any(f.startswith(krs) for krs in krs_set)]
+    changes = []
+    for f in arr:
+        krs = f[:10]
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        updated_report = get_company_report(krs)
+        with open(f"KRS_reports/{f}", "r") as file:
+            old_report = json.load(file)
+        diff = DeepDiff(old_report, updated_report, ignore_order=True)
+        changes.append({"krs":krs, "filename": f, "diff": diff})
+        os.remove(f"KRS_reports/{f}")
+        with open(f"KRS_reports/{krs}_{timestamp}.json", "w") as file:
+            json.dump(updated_report, file, ensure_ascii=False, indent=2)
+    return changes
+        
+
