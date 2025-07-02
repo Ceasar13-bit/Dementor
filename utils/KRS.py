@@ -16,7 +16,7 @@ def get_cookie_session(url):
     cookie_str = ";".join(f"{c['name']}={c['value']}" for c in cookies)
     return cookie_str
 
-def save_to_file(url, cookie):
+def save_cookie_to_file(url, cookie):
     write_headers = not os.path.exists("cookies.csv")
     with open("cookies.csv","a+", newline="") as csvfile:
         fieldnames = ["url", "cookie"]
