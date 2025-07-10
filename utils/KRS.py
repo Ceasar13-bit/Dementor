@@ -18,7 +18,7 @@ def get_cookie_session(url):
 
 def save_cookie_to_file(url, cookie):
     write_headers = not os.path.exists("cookies.csv")
-    with open("cookies.csv","a+", newline="") as csvfile:
+    with open("cookies.csv","w", newline="") as csvfile:
         fieldnames = ["url", "cookie"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         if write_headers:
@@ -147,7 +147,7 @@ def save_companies_reports():
             json.dump(data, jfile, ensure_ascii=False, indent=2)
         time.sleep(1)
 
-def get_recent_changes(data):
+def get_recent_changes(data = datetime.today().date()):
     url = f"https://api-krs.ms.gov.pl/api/Krs/Biuletyn/{data}"
     response = requests.get(url)
     return response.json()
@@ -173,5 +173,5 @@ def check_what_changed(krs_set):
         with open(f"KRS_reports/{krs}_{timestamp}.json", "w") as file:
             json.dump(updated_report, file, ensure_ascii=False, indent=2)
     return changes
-        
+
 
