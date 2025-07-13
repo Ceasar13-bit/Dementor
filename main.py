@@ -1,6 +1,7 @@
 from utils import KRS, mail, menu
 import json
 import time
+import os
 
 def main():
     menu.menu()
@@ -24,6 +25,7 @@ def main():
                     time.sleep(60)
                 except KeyboardInterrupt:
                     break
-
+        elif user_choice == "4":
+            KRS.save_companies_reports()
 if __name__ == "__main__":
     main()
