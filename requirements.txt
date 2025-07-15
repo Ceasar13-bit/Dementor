@@ -1,0 +1,4 @@
+python-dotenv
+deepdiff
+selenium
+requests

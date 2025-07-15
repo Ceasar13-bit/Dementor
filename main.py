@@ -1,7 +1,6 @@
 from utils import KRS, mail, menu
 import json
 import time
-import os
 
 def main():
     menu.menu()
